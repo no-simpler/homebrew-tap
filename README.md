@@ -13,7 +13,7 @@ Personal Homebrew tap of [`no-simpler`](https://github.com/no-simpler).
 ```bash
 brew install no-simpler/tap/<formula>
 
-Or tap first, then install:
+# or tap first, then install:
 
 brew tap no-simpler/tap
 brew install <formula>
