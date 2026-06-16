@@ -1,8 +1,8 @@
 class Clc < Formula
    desc "Use Claude Code across Git worktrees without leaving traces"
    homepage "https://github.com/no-simpler/clc"
-   url "https://github.com/no-simpler/clc/archive/refs/tags/v2.1.2.tar.gz"
-   sha256 "ee484c689fe97bf7d440d8ae2e67d829a1be92420607870625bae95fc3fae534"
+   url "https://github.com/no-simpler/clc/archive/refs/tags/v3.0.0.tar.gz"
+   sha256 "eba90dfb28cc88f4d51c537e7cf9e4af5ccc574a89e2d591abe1178ba532ac57"
    license "MIT"
    head "https://github.com/no-simpler/clc.git", branch: "main"
 
