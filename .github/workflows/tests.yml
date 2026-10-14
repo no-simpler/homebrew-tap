@@ -41,4 +41,7 @@ jobs:
 
       - run: brew test-bot --only-tap-syntax
 
-      - run: brew test-bot --only-formulae
+      # A dispatched run has no push or PR diff to find formulae in: name them.
+      - run: brew test-bot --only-formulae ${FORMULAE}
+        env:
+          FORMULAE: ${{ github.event_name == 'workflow_dispatch' && 'no-simpler/tap/clc' || '' }}
