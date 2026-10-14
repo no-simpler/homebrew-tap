@@ -1,0 +1,87 @@
+name: Bump clc
+
+# Keeps Formula/clc.rb on clc's latest release with this repository's own token:
+# no cross-repository secret. A push made with GITHUB_TOKEN triggers no workflow,
+# so the job runs the formula checks itself and then dispatches tests.yml.
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: bump
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+jobs:
+  bump:
+    runs-on: macos-26
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478 # 2026.09.28.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compare with the latest release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh api repos/no-simpler/clc/releases/latest --jq .tag_name)
+          [[ "${latest}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected tag '${latest}'"; exit 1; }
+          current=$(sed -nE 's|^  url ".*/refs/tags/(v[^/]+)\.tar\.gz"$|\1|p' Formula/clc.rb)
+          newest=$(printf '%s\n%s\n' "${current#v}" "${latest#v}" | sort -V | tail -1)
+          if [[ "${latest}" == "${current}" || "${newest}" != "${latest#v}" ]]; then
+              echo "Formula is current (${current}; latest release ${latest})"
+              exit 0
+          fi
+          echo "tag=${latest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Rewrite formula
+        if: steps.check.outputs.tag
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          url="https://github.com/no-simpler/clc/archive/refs/tags/${TAG}.tar.gz"
+          sha=$(curl -fsSL --retry 3 "${url}" | shasum -a 256 | cut -d' ' -f1)
+          URL="${url}" SHA="${sha}" perl -pi -e '
+              s|^  url ".*"$|  url "$ENV{URL}"|;
+              s|^  sha256 ".*"$|  sha256 "$ENV{SHA}"|;
+          ' Formula/clc.rb
+          git diff
+
+      - name: Check formula
+        if: steps.check.outputs.tag
+        env:
+          TAP_NAME: ${{ steps.set-up-homebrew.outputs.tap-name }}
+        run: |
+          brew style "${TAP_NAME}"
+          brew audit --strict --online "${TAP_NAME}/clc"
+          brew install --build-from-source "${TAP_NAME}/clc"
+          brew test "${TAP_NAME}/clc"
+
+      - name: Commit and push
+        if: steps.check.outputs.tag
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update clc to ${TAG}" -- Formula/clc.rb
+          git push origin HEAD:main
+
+      - name: Run tests on the new commit
+        if: steps.check.outputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run tests.yml --repo "${GITHUB_REPOSITORY}" --ref main
